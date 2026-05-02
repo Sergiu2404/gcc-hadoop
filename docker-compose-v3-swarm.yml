@@ -1,0 +1,122 @@
+version: '3'
+
+services:
+  namenode:
+    image: asergiu/ubb:hadoop-namenode
+    networks:
+      - hadoop
+    volumes:
+      - namenode:/hadoop-data/dfs/name
+      - /home/hadoop:/data
+    ports:
+      - 9870:9870
+      - 9000:9000
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+      # labels:
+      #   traefik.docker.network: hadoop_test_network
+      #   traefik.port: 50070
+
+  datanode:
+    image: asergiu/ubb:hadoop-datanode
+    networks:
+      - hadoop
+    volumes:
+      - datanode:/hadoop-data/dfs/data
+    ports:
+      - 9864:9864
+    env_file:
+      - ./hadoop.env
+    environment:
+     SERVICE_PRECONDITION: "namenode:9870 namenode:9000 resourcemanager:8088"
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      # labels:
+      #   traefik.docker.network: hadoop_test_network
+      #   traefik.port: 50075
+
+  resourcemanager:
+    image: asergiu/ubb:hadoop-resourcemanager
+    networks:
+      - hadoop
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870"
+    env_file:
+      - ./hadoop.env
+    ports:
+      - 8088:8088
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+      # labels:
+      #   traefik.docker.network: hadoop_test_network
+      #   traefik.port: 8088
+    healthcheck:
+      disable: true
+
+  nodemanager:
+    image: asergiu/ubb:hadoop-nodemanager
+    networks:
+      - hadoop
+    ports:
+      - 8042:8042
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      # labels:
+      #   traefik.docker.network: hadoop_test_network
+      #   traefik.port: 8042
+
+  historyserver:
+    image: asergiu/ubb:hadoop-historyserver
+    networks:
+      - hadoop
+    volumes:
+      - hadoop_historyserver:/hadoop-data/yarn/timeline
+    ports:
+      - 8188:8188
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      # labels:
+      #   traefik.docker.network: hadoop_test_network
+      #   traefik.port: 8188
+
+volumes:
+  datanode:
+  namenode:
+  hadoop_historyserver:
+
+networks:
+  hadoop:
+    driver: overlay
+    # external: true
